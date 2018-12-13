@@ -51,8 +51,7 @@ y <- (x_lin + rnorm(101) * 5) * w + b
 
 ggplot()+
   geom_point(aes(x_lin,y),color="blue")+
-  labs(title="Assume we have data points")+
-  geom_smooth(method='lm',se=FALSE,col="red")
+  labs(title="Assume we have data points")
 ```
 ```{r}
 y_hat = x_lin * w + b
