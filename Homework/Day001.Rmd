@@ -9,9 +9,9 @@ url <- "https://www.kaggle.com/spscientist/students-performance-in-exams/downloa
 dat <- read.csv("data/StudentsPerformance.csv")
 head(dat)
 ```
-1. The dataset is important for public interest
-2. The dataset is from Royse Kimmons website
-3. It's a structured data, including scores from three exams and a variety of personal, social, and economic factors
+1. The dataset is important for public interest.
+2. The dataset is from Royse Kimmons website.
+3. It's a structured data, including scores from three exams and a variety of personal, social, and economic factors.
 4. The dataset aims to understand the influence of various factors like economic, personal and social on the students performance.  
 * Inferences:
   + How to imporve the students performance in each test ?
@@ -19,6 +19,13 @@ head(dat)
   + Effectiveness of test preparation course?
   
 ## HW2
+1. The key problem is to have statistically significant increasing on revenue through the data analysis.
+2. Data such like taxi experience, location of boarding and alighting point, driver's service, and so on.
+3. Data mentioned above is supposed to structured, and it's also to be more convinent for analysis.
+4. Run a regression to check the significance of the hypothesis. 
+
+
+
 
 ## HW3
 ```{r echo=TRUE}
