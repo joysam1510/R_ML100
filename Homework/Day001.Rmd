@@ -1,6 +1,6 @@
 ---
 title: "Day001"
-output: html_notebook
+output: rmarkdown::github_document
 ---
 
 ## HW1 
