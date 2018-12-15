@@ -1,0 +1,56 @@
+---
+title: "Day003-1"
+output: rmarkdown::github_document
+---
+Packages loading
+```{r message=FALSE}
+library(tidyverse)
+library(magrittr)
+library(jpeg)
+library(cowplot)
+library(magick)
+```
+
+Loading text file
+```{r}
+url <- "https://raw.githubusercontent.com/vashineyu/slides_and_others/master/tutorial/examples/imagenet_urls_examples.txt"
+dat <- read.delim(url, header = FALSE, stringsAsFactors = FALSE)
+class(dat)
+```
+
+Rename the columns
+```{r}
+dat <- set_colnames(dat, c("id", "url"))
+head(dat)
+```
+Try to catch the image
+```{r}
+result <- 1:5 %>% 
+  map(function(i) {
+    tryCatch({
+      ggdraw() +
+      draw_image(dat$url[i])
+    }, error = function(msg) {
+      message(paste("image",i,"not found","\n"))
+    })
+  })
+```
+Number of pictures we finally get
+```{r}
+n <- 0
+for(i in seq_along(result)) {
+  n <- n + sum(is.null(result[[i]]))
+}
+
+print(paste("Total images that we got:",length(result)-n))
+```
+
+Show the image
+```{r echo=TRUE,results='hide',fig.keep='all'}
+result
+```
+
+
+
+
+

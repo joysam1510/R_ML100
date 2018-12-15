@@ -1,0 +1,15 @@
+---
+title: "Day003-1"
+output: rmarkdown::github_document
+---
+
+```{r}
+country <- c("Taiwan", "China", "Japan", "Korea", "Singapore")
+population <- sample(1e8:1e9, 5)
+(df <- data.frame(Country = country, Population = population))
+```
+```{r}
+index <- which.max(population)
+df[index,]$Country
+```
+
