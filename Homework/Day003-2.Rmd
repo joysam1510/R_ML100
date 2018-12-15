@@ -1,5 +1,5 @@
 ---
-title: "Day003-1"
+title: "Day003"
 output: rmarkdown::github_document
 ---
 Packages loading
@@ -10,6 +10,18 @@ library(jpeg)
 library(cowplot)
 library(magick)
 ```
+
+##HW3.1
+```{r}
+country <- c("Taiwan", "China", "Japan", "Korea", "Singapore")
+population <- sample(1e8:1e9, 5)
+(df <- data.frame(Country = country, Population = population))
+```
+```{r}
+index <- which.max(population)
+df[index,]$Country
+```
+##HW3.2
 
 Loading text file
 ```{r}
