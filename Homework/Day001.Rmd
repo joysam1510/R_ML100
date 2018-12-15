@@ -14,14 +14,14 @@ head(dat)
 3. It's a structured data, including scores from three exams and a variety of personal, social, and economic factors.
 4. The dataset aims to understand the influence of various factors like economic, personal and social on the students performance.  
 * Inferences:
-  + How to imporve the students performance in each test ?
+  + How to imporve the students' performance in each test ?
   + What are the major factors influencing the test scores ?
   + Effectiveness of test preparation course?
   
 ## HW2
 1. The key problem is to have statistically significant increasing on revenue through the data analysis.
 2. Data such like taxi experience, location of boarding and alighting point, driver's service, and so on.
-3. Data mentioned above is supposed to structured, and it's also to be more convinent for analysis.
+3. Data mentioned above is supposed to be structured, and it is also more convinent for analysis.
 4. Run a regression to check the significance of the hypothesis. 
 
 
