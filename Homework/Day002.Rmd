@@ -1,0 +1,85 @@
+---
+title: "Day002"
+output: rmarkdown::github_document
+---
+url: https://www.kaggle.com/c/home-credit-default-risk
+
+```{r message=FALSE}
+library(tidyverse)
+library(plyr)
+library(ggplot2)
+```
+
+##Loading the train data
+```{r}
+dat <- read.csv("data/application_train.csv")
+glimpse(dat)
+```
+  
+##Age of Client
+```{r}
+summary(dat$DAYS_BIRTH/-365)
+```
+
+```{r}
+dat %>%
+  as.data.frame() %>%
+  mutate(AGE=round(dat$DAYS_BIRTH/-365)) %>%
+  ggplot(aes(x=AGE))+
+    geom_histogram(color="#C06C84",fill="#F67280")
+```
+  
+##Effect of Age on The Target
+```{r}
+dat %>%
+  as.data.frame() %>%
+  mutate(AGE=round(dat$DAYS_BIRTH/-365),
+         TARGET = as.factor(TARGET)) %>%
+  ggplot(data=.)+
+    geom_density(aes(AGE, color=TARGET), kernel="gaussian", na.rm = TRUE)
+```
+  
+##Employment Experience
+```{r}
+summary(dat$DAYS_EMPLOYED/-365)
+```
+It seems that there are some typos on this variable
+```{r}
+sum(dat$DAYS_EMPLOYED>0)
+```
+```{r}
+dat %>%
+  filter(DAYS_EMPLOYED>0) %>%
+  select(DAYS_EMPLOYED) %>%
+  head()
+```
+```{r}
+sum(dat$DAYS_EMPLOYED==365243)
+```
+We have found that all the illogical number is the same number, so we replace it with NA
+```{r message=FALSE}
+dat <- mutate(dat, DAYS_EMPLOYED = mapvalues(DAYS_EMPLOYED, 365243, NA))
+```
+  
+##Exployment Experience of Client
+```{r}
+dat %>%
+  as.data.frame() %>%
+  mutate(Years_Employed=round(dat$DAYS_EMPLOYED/-365)) %>%
+  ggplot(aes(x=Years_Employed))+
+    geom_histogram(color="#C06C84",fill="#F67280",na.rm = TRUE)
+```
+  
+##Effect of Employment Experience on The Target
+```{r}
+dat %>%
+  as.data.frame() %>%
+  mutate(Year_Employed=round(dat$DAYS_EMPLOYED/-365),
+         TARGET = as.factor(TARGET)) %>%
+  ggplot(data=.)+
+    geom_density(aes(Year_Employed, color=TARGET), kernel="gaussian", na.rm = TRUE)
+```
+
+
+
+
