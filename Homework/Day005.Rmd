@@ -1,0 +1,41 @@
+---
+title: "Day005"
+output: rmarkdown::github_document
+---
+
+```{r message=FALSE}
+library(tidyverse)
+library(magrittr)
+library(ggplot2)
+```
+```{r}
+dat <- read.csv("data/application_train.csv")
+glimpse(dat)
+```
+```{r}
+dat %>% 
+  select(AMT_INCOME_TOTAL) %>%
+  summarise(n = n(),
+            Min = min(AMT_INCOME_TOTAL),
+            Q25 = quantile(AMT_INCOME_TOTAL, .25),
+            Median = median(AMT_INCOME_TOTAL),
+            Q75 = quantile(AMT_INCOME_TOTAL, .75),
+            Max = max(AMT_INCOME_TOTAL),
+            Mean = mean(AMT_INCOME_TOTAL),
+            Sd = sd(AMT_INCOME_TOTAL)) 
+```
+```{r warning=FALSE}
+dat %>% 
+  ggplot(aes(x = AMT_INCOME_TOTAL))+
+  geom_histogram(aes(y=..density..), colour="black", fill="#C06C84")+
+  geom_density(alpha=.4, fill="#F67280")+
+  xlim(0,1e6)
+```
+```{r}
+dat %>% 
+  ggplot(aes(sample = log(AMT_INCOME_TOTAL)))+
+  geom_qq(distribution = stats::qnorm, colour="#F67280")+
+  stat_qq_line(color="blue")+
+  labs(title = "log(AMT_INCOME_TOTAL) QQplot")
+```
+
