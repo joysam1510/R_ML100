@@ -1,5 +1,5 @@
 ---
-title: "Day005"
+title: "Day006"
 output: rmarkdown::github_document
 ---
 ```{r message=FALSE}
