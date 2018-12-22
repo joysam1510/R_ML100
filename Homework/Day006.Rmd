@@ -1,0 +1,98 @@
+---
+title: "Day005"
+output: rmarkdown::github_document
+---
+```{r message=FALSE}
+library(magrittr)
+library(tidyverse)
+```
+
+```{r}
+app_train <- read.csv("data/application_train.csv")
+sapply(app_train, class) %>% as.factor() %>% summary()
+```
+
+```{r}
+col_type <- sapply(app_train, class) %>% as.factor()
+num_col <- which(!col_type == "factor") # 先篩選數值型的欄位
+num_dum_idx <- app_train[,num_col] %>%
+  sapply(unique) %>%
+  sapply(length) %>%
+  {. == 2} 
+num_col <- app_train[,num_col][,!num_dum_idx] # 再把只有 2 值 (通常是 0,1) 的欄位去掉
+print(paste("Numbers of remain columns:", ncol(num_col)))
+```
+```{r warning=FALSE}
+# 檢視這些欄位的數值範圍
+for(i in 1:ncol(num_col)) {
+  boxplot(num_col[,i], main=paste(colnames(num_col)[i], "boxplot"))
+}
+
+# AMT_INCOME_TOTAL
+# REGION_POPULATION_RELATIVE
+# OBS_60_CNT_SOCIAL_CIRCLE
+```
+```{r}
+num_col$AMT_INCOME_TOTAL %>% summary
+# 最大值離平均與中位數很遠
+```
+```{r}
+ggplot(num_col, aes(AMT_INCOME_TOTAL)) + 
+  stat_ecdf(geom = "step") +
+  labs(title="ECDF of AMT_INCOME_TOTAL",
+       x='Value',
+       y='ECDF')
+```
+```{r warning=FALSE}
+# 改變 y 軸的 Scale, 讓我們可以正常檢視 ECDF
+ggplot(num_col, aes(log(AMT_INCOME_TOTAL))) + 
+  stat_ecdf(geom = "step") +
+  labs(title="ECDF of AMT_INCOME_TOTAL",
+       x='Value (log-scale)',
+       y='ECDF')
+```
+```{r}
+num_col$REGION_POPULATION_RELATIVE %>% summary
+```
+```{r}
+ggplot(num_col, aes(REGION_POPULATION_RELATIVE)) + 
+  stat_ecdf(geom = "step") +
+  labs(title="ECDF of REGION_POPULATION_RELATIVE",
+       x='Value',
+       y='ECDF')
+```
+```{r message=FALSE, warning=FALSE}
+ggplot(num_col, aes(REGION_POPULATION_RELATIVE)) + 
+  geom_histogram() +
+  labs(title="Histogram of REGION_POPULATION_RELATIVE")
+# 就以這個欄位來說，雖然有資料掉在分布以外，也不算異常，僅代表這間公司在稍微熱鬧的地區有的據點較少，
+# 導致 region population relative 在少的部分較為密集，但在大的部分較為疏漏
+```
+```{r}
+num_col$OBS_60_CNT_SOCIAL_CIRCLE %>% summary
+```
+```{r warning=FALSE}
+ggplot(num_col, aes(OBS_60_CNT_SOCIAL_CIRCLE)) + 
+  stat_ecdf(geom = "step") +
+  labs(title="ECDF of OBS_60_CNT_SOCIAL_CIRCLE",
+       x='Value',
+       y='ECDF')
+```
+```{r message=FALSE, warning=FALSE}
+ggplot(num_col, aes(OBS_60_CNT_SOCIAL_CIRCLE)) + 
+  geom_histogram() +
+  labs(title="Histogram of OBS_60_CNT_SOCIAL_CIRCLE")
+# 注意：當 histogram 畫出上面這種圖 (只出現一條，但是 x 軸延伸很長導致右邊有一大片空白時，代表右邊有值但是數量稀少。
+```
+```{r}
+num_col$OBS_60_CNT_SOCIAL_CIRCLE %>% 
+  unique %>% sort(decreasing = TRUE)
+```
+```{r message=FALSE}
+num_col %>% 
+  filter(OBS_60_CNT_SOCIAL_CIRCLE < 20) %>% 
+  ggplot(aes(OBS_60_CNT_SOCIAL_CIRCLE)) + 
+  geom_histogram() +
+  labs(title="Histogram of OBS_60_CNT_SOCIAL_CIRCLE(<20)")
+```
+
