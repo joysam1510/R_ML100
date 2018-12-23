@@ -1,0 +1,89 @@
+---
+title: "Day007"
+output: rmarkdown::github_document
+---
+
+```{r include=FALSE}
+knitr::opts_chunk$set(warning = FALSE)
+```
+
+```{r message=FALSE}
+library(magrittr)
+library(tidyverse)
+```
+
+```{r}
+app_train <- read.csv("data/application_train.csv")
+head(app_train)
+```
+
+##處理outliers
+* 新增欄位註記
+* outliers 或 NA 填補
+  + 平均數 (mean)
+  + 中位數 (median, or Q50)
+  + 最大/最小值 (max/min, Q100, Q0)
+  + 分位數 (quantile)
+  
+##連續值標準化
+1. Z-transform:  (x−mean(x)) / sd(x) 
+2. Range (0 ~ 1):  (x−min(x)) / (x−min(x)) 
+3. Range (-1 ~ 1):  2 * {[(x−min(x)) / (max(x)−min(x))] − 0.5} 
+
+##HW
+1. 列出 AMT_ANNUITY 的 q0 - q100  
+```{r}
+probs <- (0:100)/100
+quantile(app_train$AMT_ANNUITY, probs = probs, na.rm = TRUE) %>%
+  as.data.frame() %>% set_colnames("AMT_ANNUITY")
+```
+2.1 將 AMT_ANNUITY 中的 NAs 暫時以中位數填補  
+```{r}
+cat(paste("Before replace NAs, numbers of row that AMT_ANNUITY is NAs:", sum(is.na(app_train$AMT_ANNUITY))));
+
+q50 <- quantile(app_train$AMT_ANNUITY, probs = 0.5, na.rm = TRUE)
+app_train$AMT_ANNUITY[is.na(app_train$AMT_ANNUITY)] <- q50
+
+cat(paste("After replace NAs, numbers of row that AMT_ANNUITY is NAs:", sum(is.na(app_train$AMT_ANNUITY))))
+```
+2.2 將 AMT_ANNUITY 的數值標準化至 -1 ~ 1 間  
+
+Original data range  
+```{r}
+app_train$AMT_ANNUITY %>% summary
+```
+```{r}
+normaliza_value <- function(x) {
+  ((x - min(x)) / (max(x) - min(x)) - .5) * 2
+}
+
+app_train <- app_train %>%
+  mutate(AMT_ANNUITY_NORMALIZED = normaliza_value(AMT_ANNUITY))
+```
+Normalized data range  
+```{r}
+app_train$AMT_ANNUITY_NORMALIZED %>% summary
+```
+
+3. 將 AMT_GOOD_PRICE 的 NAs 以眾數填補  
+```{r}
+cat(paste("Before replace NAs, numbers of row that AMT_GOODS_PRICE is NAs:", sum(is.na(app_train$AMT_GOODS_PRICE))))
+```
+```{r}
+app_train$AMT_GOODS_PRICE %>%
+  table %>%
+  sort(decreasing = TRUE) %>%
+  head
+
+value_most <- app_train$AMT_GOODS_PRICE %>%
+  table %>%
+  which.max %>%
+  names %>% 
+  as.numeric
+
+app_train$AMT_GOODS_PRICE[is.na(app_train$AMT_GOODS_PRICE)] <- value_most
+```
+```{r}
+cat(paste("After replace NAs, numbers of row that AMT_GOODS_PRICE is NAs:", sum(is.na(app_train$AMT_GOODS_PRICE))))
+```
+
