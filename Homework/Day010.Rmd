@@ -1,0 +1,75 @@
+---
+title: "Day010"
+output: rmarkdown::github_document
+---
+
+```{r include=FALSE}
+knitr::opts_chunk$set(warning = FALSE)
+```
+
+```{r message=FALSE}
+library(magrittr)
+library(purrr)
+library(plyr)
+library(tidyverse)
+library(gridExtra)
+```
+
+Data loading
+```{r}
+app_train <- read.csv("data/application_train.csv")
+app_test <- read.csv("data/application_train.csv")
+```
+
+Label encoding
+```{r}
+feature.names <- colnames(app_train)
+count <- 0
+
+# Iterate through the columns
+for (f in feature.names) {
+    if (class(app_train[[f]]) == 'factor') {
+        if (nlevels(app_train[[f]]) <= 2) {
+        levels <- list(app_train[[f]], app_test[[f]]) %>% unlist() %>% levels()
+        app_train[[f]] <- mapvalues(app_train[[f]], from=levels, to=c(1,2)) %>% as.integer()
+        app_test[[f]] <- mapvalues(app_test[[f]], from=levels, to=c(1,2)) %>% as.integer()
+        count <- count + 1
+        }
+    }
+}
+
+print(paste(count,"labels were label encoded."))
+```
+
+```{r}
+# Create an anomalous flag column
+app_train$DAYS_EMPLOYED_ANOM <- app_train$DAYS_EMPLOYED == 365243
+app_train$DAYS_EMPLOYED[which(app_train$DAYS_EMPLOYED == 365243)] <- NA
+
+# also apply to testing dataset
+app_test$DAYS_EMPLOYED_ANOM <- app_test$DAYS_EMPLOYED == 365243
+app_test$DAYS_EMPLOYED[which(app_test$DAYS_EMPLOYED == 365243)] <- NA
+
+# absolute the value of DAYS_BIRTH
+app_train$DAYS_BIRTH <- abs(app_train$DAYS_BIRTH)
+app_test$DAYS_BIRTH <- abs(app_test$DAYS_BIRTH)
+```
+
+Correlation with Target
+```{r}
+(corr <- cor(map(app_train, as.numeric) %>% as.data.frame(), app_train$TARGET, use = "pairwise.complete.obs"))
+```
+Top 15, correlation with Target 
+```{r}
+corr[order(corr, decreasing = TRUE),,drop=FALSE] %>% head(15)
+```
+
+Bottom 15, correlation with Target 
+```{r}
+corr[order(corr),,drop=FALSE] %>% head(15)
+```
+```{r}
+ggplot(app_train) +
+  geom_boxplot(aes(as.factor(TARGET), EXT_SOURCE_3))
+```
+
