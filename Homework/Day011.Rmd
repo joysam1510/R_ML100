@@ -1,0 +1,103 @@
+---
+title: "Day011"
+output: rmarkdown::github_document
+---
+
+Kernel Density Estimation Introduction:  
+1. https://blog.csdn.net/david830_wu/article/details/66974189  
+2. https://blog.csdn.net/unixtch/article/details/78556499
+
+```{r include=FALSE}
+knitr::opts_chunk$set(warning = FALSE)
+```
+
+Packages loading
+```{r message=FALSE}
+library(magrittr)
+library(purrr)
+library(plyr)
+library(tidyverse)
+library(gridExtra)
+```
+
+Data loading
+```{r}
+app_train <- read.csv("data/application_train.csv")
+```
+##HW  
+1. 自 20 到 70 歲，切 11 個點，進行分群比較 (KDE plot)  
+2. 以年齡區間為 x, target 為 y 繪製 barplot
+
+
+根據年齡分成不同組別 (年齡區間 - 還款與否)
+```{r}
+app_train$DAYS_BIRTH <- abs(app_train$DAYS_BIRTH)
+
+age_data <- app_train %>% select(c(TARGET, DAYS_BIRTH))
+age_data$YEARS_BIRTH <- age_data$DAYS_BIRTH / 365
+```
+
+各組年齡數量
+```{r}
+breaks <- seq(20, 70, length.out = 11)
+age_data$YEARS_BINNED <- cut(age_data$YEARS_BIRTH, breaks = breaks)
+table(age_data$YEARS_BINNED)
+```
+```{r}
+head(age_data)
+```
+KDE plot
+```{r}
+age_data %>% 
+  filter(TARGET == 0) %>% 
+  mutate(TARGET = as.factor(TARGET)) %>%
+  ggplot(aes(x = YEARS_BIRTH, fill = YEARS_BINNED)) +
+    geom_histogram(aes(y = ..density..),binwidth = 1, alpha = .7, linetype = "blank") +
+    geom_density(alpha = .3) +
+    ggtitle("KDE with Age groups (TARGET=0)")
+```
+```{r}
+age_data %>% 
+  filter(TARGET == 1) %>% 
+  mutate(TARGET = as.factor(TARGET)) %>%
+  ggplot(aes(x = YEARS_BIRTH, fill = YEARS_BINNED)) +
+    geom_histogram(aes(y = ..density..),binwidth = 1, alpha = .7, linetype = "blank") +
+    geom_density(alpha = .3) +
+    ggtitle("KDE with Age groups (TARGET=1)")
+```
+  
+計算每個年齡區間的 Target、DAYS_BIRTH與 YEARS_BIRTH 的平均值
+```{r}
+(age_group_data <- age_data %>% 
+   group_by(YEARS_BINNED) %>%
+   dplyr::summarise(TARGET = mean(TARGET),
+                    DAYS_BIRTH = mean(DAYS_BIRTH),
+                    YEARS_BIRTH = mean(YEARS_BIRTH)))
+```
+
+以年齡區間為 x, target 為 y 繪製 barplot
+```{r}
+ggplot(age_group_data, aes(x = YEARS_BINNED, y = TARGET, fill = YEARS_BINNED)) +
+  geom_bar(stat = "identity") + 
+  geom_text(aes(label=round(TARGET,3)), vjust=-0.3, size=3.5) +
+  theme(axis.text.x = element_text(angle = 75, hjust = 1)) +
+  labs(title = 'Failure to Repay by Age Group',
+       x = 'Age Group (years)',
+       y = 'Failure to Repay (%)')
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
