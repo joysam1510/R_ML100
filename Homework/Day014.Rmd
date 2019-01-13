@@ -1,0 +1,76 @@
+---
+title: "Day014"
+output: rmarkdown::github_document
+---
+
+```{r include=FALSE}
+knitr::opts_chunk$set(warning = FALSE)
+```
+
+```{r message=FALSE}
+library(tidyverse)
+library(plyr)
+library(magrittr)
+library(ggExtra)
+library(gridExtra)
+library(purrr)
+```
+
+Data loading
+```{r}
+app_train <- read.csv("data/application_train.csv")
+```
+
+##根據不同的 HOUSETYPE_MODE 對 AMT_CREDIT 繪製 Histogram 
+
+Subset the data
+```{r}
+house_type <- app_train %>% 
+  select(HOUSETYPE_MODE, AMT_CREDIT)
+
+house_type$HOUSETYPE_MODE <- mapvalues(house_type$HOUSETYPE_MODE, from = "", to = 'na')
+head(house_type)
+```
+
+```{r}
+unique_house_type <- unique(house_type$HOUSETYPE_MODE)
+
+housetype_subplot <- function (type) {
+   house_type %>% 
+       filter(HOUSETYPE_MODE == type) %>%
+       ggplot(aes(x = AMT_CREDIT)) +
+         geom_histogram(bins = 15, fill = "#FF9999", color = "red") +
+         ggtitle(type)
+}
+
+myplots <- lapply(unique_house_type, housetype_subplot)
+do.call(grid.arrange, myplots)
+```
+
+##log(AMT_INCOME_TOTAL) 對 YEARS_EMPLOYED 繪製 Scatterplot
+```{r}
+# Create an anomalous flag column
+app_train$DAYS_EMPLOYED_ANOM <- app_train$DAYS_EMPLOYED == 365243
+app_train$DAYS_EMPLOYED[which(app_train$DAYS_EMPLOYED == 365243)] <- NA
+
+# absolute the value of DAYS_EMPLOYED
+app_train$DAYS_EMPLOYED <- abs(app_train$DAYS_EMPLOYED)
+
+app_train$YEARS_EMPLOYED <- app_train$DAYS_EMPLOYED / 365
+```
+
+
+```{r}
+a <- ggplot(app_train, aes(x = YEARS_EMPLOYED, y = log(AMT_INCOME_TOTAL))) +
+  geom_point(colour = "blue") +
+  stat_smooth(method = "lm", formula = y~x)
+
+a <- ggMarginal(a, type="histogram",fill="#C06C84", color="#F67280")
+plot(a)
+```
+
+
+
+
+
+
