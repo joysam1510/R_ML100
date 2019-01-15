@@ -1,0 +1,130 @@
+---
+title: "Day016"
+output: rmarkdown::github_document
+---
+
+```{r pressure, echo=FALSE, fig.cap="A caption", out.width = '100%'}
+knitr::include_graphics("data/log_reg_picture.png")
+```
+
+```{r include=FALSE}
+knitr::opts_chunk$set(warning = FALSE)
+```
+Packages loading
+```{r message=FALSE}
+library(purrr)
+library(plyr)
+library(tidyverse)
+library(caret)
+```
+Data loading
+```{r}
+app_train <- read.csv("data/application_train.csv")
+app_test <- read.csv("data/application_test.csv")
+```
+
+Data cleaning
+```{r}
+# Create an anomalous flag column
+app_train$DAYS_EMPLOYED_ANOM <- app_train$DAYS_EMPLOYED == 365243
+app_train$DAYS_EMPLOYED[which(app_train$DAYS_EMPLOYED == 365243)] <- NA
+
+# also apply to testing dataset
+app_test$DAYS_EMPLOYED_ANOM <- app_test$DAYS_EMPLOYED == 365243
+app_test$DAYS_EMPLOYED[which(app_test$DAYS_EMPLOYED == 365243)] <- NA
+
+# absolute the value of DAYS_BIRTH
+app_train$DAYS_BIRTH <- abs(app_train$DAYS_BIRTH)
+app_test$DAYS_BIRTH <- abs(app_test$DAYS_BIRTH)
+
+# absolute the value of DAYS_EMPLOYED
+app_train$DAYS_EMPLOYED <- abs(app_train$DAYS_EMPLOYED)
+app_test$DAYS_EMPLOYED <- abs(app_test$DAYS_EMPLOYED)
+```
+Make sure training and testing data have the same levels in each feature  
+```{r}
+train_labels <- app_train$TARGET
+train <- app_train %>% select(-c("TARGET", "DAYS_EMPLOYED_ANOM"))
+test <- app_test %>% select(-c("DAYS_EMPLOYED_ANOM"))
+
+for(attr in colnames(train)) {
+  if (is.factor(train[[attr]])) {
+    new.levels <- setdiff(levels(train[[attr]]), levels(test[[attr]]))
+    if ( length(new.levels) == 0 )
+    { print(paste(attr, '- no new levels')) }
+    else
+    {
+      print(c(paste(attr, length(new.levels), 'of new levels, e.g.'), head(new.levels, 2)))
+      levels(test[[attr]]) <- union(levels(test[[attr]]), levels(train[[attr]]))
+    }
+  }
+}
+```
+
+Label encoding  
+```{r}
+feature.names <- colnames(train)
+count <- 0
+
+# Iterate through the columns
+for (f in feature.names) {
+    if (class(train[[f]]) == 'factor') {
+        if (nlevels(train[[f]]) <= 2) {
+        levels <- list(train[[f]], test[[f]]) %>% unlist() %>% levels()
+        train[[f]] <- mapvalues(train[[f]], from=levels, to=c(1,2)) %>% as.integer()
+        test[[f]] <- mapvalues(test[[f]], from=levels, to=c(1,2)) %>% as.integer()
+        count <- count + 1
+        }
+    }
+}
+
+print(paste(count,"labels were label encoded."))
+```
+```{r}
+for (f in feature.names) {
+  if (class(train[[f]]) == 'factor') {
+    print(f)
+  }
+}
+```
+
+One-hot-encoding
+```{r}
+train_dmy <- dummyVars("~.", data = train)
+train <- data.frame(predict(train_dmy, newdata = train))
+test_dmy <- dummyVars("~.", data = test)
+test <- data.frame(predict(test_dmy, newdata = test))
+
+head(train)
+```
+
+```{r}
+#Median imputation of missing values
+for (i in which(map(train, anyNA) == TRUE)) {
+    if(class(train[[i]]) == "numeric") {
+      train[[i]] <- mapvalues(train[[i]], from = NA, to = median(train[[i]], na.rm = TRUE))
+    }
+}
+for (i in which(map(test, anyNA) == TRUE)) {
+    if(class(test[[i]]) == "numeric") {
+      test[[i]] <- mapvalues(test[[i]], from = NA, to = median(test[[i]], na.rm = TRUE))
+    }
+}
+
+train$TARGET <- train_labels
+```
+Model Fitting
+```{r}
+model <- glm(TARGET~., family = binomial(link = "logit"), data = train)
+summary(model)
+```
+```{r}
+fitted.results <- predict(model, newdata= test, type='response')
+submit <- data.frame(SK_ID_CURR = as.integer(test$SK_ID_CURR),
+                     TARGET = fitted.results)
+head(submit)
+```
+```{r}
+#write.csv(submit, file = "data/log_reg_baseline.csv",row.names = FALSE)
+```
+
