@@ -1,0 +1,104 @@
+---
+title: "Day017"
+output: rmarkdown::github_document
+---
+## Introduction to Feature Engineering:  
+https://blog.csdn.net/lulujiang1996/article/details/79058520  
+https://blog.csdn.net/jiangjingxuan/article/details/54728635  
+
+## HW (Kaggle)鐵達尼生存預測精簡版  
+https://www.kaggle.com/c/titanic  
+
+作業1  
+下列A~E五個程式區塊中，哪一塊是特徵工程?  
+C  
+  
+作業2  
+對照程式區塊 B 與 C 的結果，請問那些欄位屬於"類別型欄位"? (回答欄位英文名稱即可)  
+Sex, Ticket, Cabin, Embarked  
+  
+作業3  
+續上題，請問哪個欄位是"目標值"?  
+Survived  
+
+
+```{r include=FALSE}
+knitr::opts_chunk$set(warning = FALSE)
+```
+Packages loading
+```{r message=FALSE}
+library(purrr)
+library(plyr)
+library(tidyverse)
+library(caret)
+```
+### 程式區塊 A  
+Data loading  
+```{r}
+df_train <- read.csv("data/titanic_train.csv")
+df_test <- read.csv("data/titanic_test.csv")
+dim(df_train)
+```
+### 程式區塊 B  
+Setting training and testing data  
+```{r}
+train_y <- df_train$Survived
+ids <- df_test$PassengerId
+df_train <- df_train %>% select(-c("Survived","PassengerId"))
+df_test <- df_test %>% select(-"PassengerId")
+df <- rbind(df_train, df_test)
+head(df)
+```
+### 程式區塊 C  
+Label encoding  
+```{r}
+feature.names <- colnames(df)
+count <- 0
+
+# Iterate through the columns
+for (f in feature.names) {
+    if (class(df[[f]]) == 'factor') {
+        levels <- list(df[[f]]) %>% unlist() %>% levels()
+        df[[f]] <- mapvalues(df[[f]], from=levels, to=seq_along(levels)) %>% as.integer()
+        count <- count + 1
+    }
+}
+
+print(paste(count,"labels were label encoded."))
+```
+```{r}
+# Replace NA with value -1
+df <- df %>% replace(., is.na(.), -1)
+
+# Scale all features to (0,1)
+for (i in 1:ncol(df)) {
+  df[[i]] <- (df[[i]] - min(df[[i]])) / (max(df[[i]]) - min(df[[i]]))
+}
+
+head(df)
+```
+### 程式區塊 D  
+Logistic regression model fitting  
+```{r}
+train_x <- df[seq_along(train_y),]
+test_x <- df[-seq_along(train_y),]
+train <- train_x %>% mutate(Survived = train_y)
+
+model <- glm(Survived~., family = binomial(link = "logit"), data = train)
+summary(model)
+```
+### 程式區塊 E  
+```{r}
+fitted.results <- predict(model, newdata= test_x, type='response')
+fitted.results <- ifelse(fitted.results > 0.5, yes = 1, no = 0)
+submit <- data.frame(PassengerId = ids,
+                     Survived = fitted.results)
+
+head(submit)
+```
+```{r}
+#write.csv(submit, file = "Homework/data/titanic_baseline.csv",row.names = FALSE)
+```
+
+
+
