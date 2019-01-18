@@ -1,0 +1,171 @@
+---
+title: "Day019"
+output: rmarkdown::github_document
+---
+
+## HW (Kaggle)鐵達尼生存預測精簡版  
+https://www.kaggle.com/c/titanic  
+
+
+```{r include=FALSE}
+knitr::opts_chunk$set(warning = FALSE)
+```
+Packages loading
+```{r message=FALSE}
+library(purrr)
+library(plyr)
+library(tidyverse)
+library(caret)
+library(ROCR)
+```
+
+Data loading  
+```{r}
+df_train <- read.csv("data/titanic_train.csv")
+df_test <- read.csv("data/titanic_test.csv")
+sapply(list(df_train=df_train, df_test=df_test), dim) %>% 'rownames<-'(c('nrow','ncol')) 
+```
+
+Setting training and testing data  
+```{r}
+train_y <- df_train$Survived
+ids <- df_test$PassengerId
+df_train <- df_train %>% select(-c("Survived","PassengerId"))
+df_test <- df_test %>% select(-"PassengerId")
+df <- rbind(df_train, df_test)
+head(df)
+```
+
+秀出資料欄位的類型與數量
+```{r}
+table(sapply(df, class))
+```
+確定只有 integer, numeric, factor 三種類型後, 分別將欄位名稱存於三個 vector 中
+```{r}
+feature_type <- sapply(df, class)
+int_var <- feature_type[which(feature_type == "integer")] %>% as.data.frame %>% rownames
+num_var <- feature_type[which(feature_type == "numeric")] %>% as.data.frame %>% rownames
+fac_var <- feature_type[which(feature_type == "factor")] %>% as.data.frame %>% rownames
+list(integer_feature = int_var,
+     numeric_feature = num_var,
+     factor_feature = fac_var)
+```
+
+削減文字型欄位, 只剩數值型欄位
+```{r}
+df <- df %>% select(-fac_var)
+train_num <- length(train_y)
+head(df)
+```
+
+
+##作業1  
+試著在補空值區塊, 替換並執行兩種以上填補的缺值, 看看何者比較好?  
+
+空值補 -1, 做羅吉斯迴歸
+```{r}
+df_m1 <- df %>% replace(., is.na(.), -1)
+train_x <- df_m1[1:train_num,]
+train_y <- as.factor(train_y)
+levels(train_y) <- make.names(levels(factor(train_y)))
+
+train <- train_x %>% mutate(Survived = train_y)
+control <- trainControl(method="cv", number=5, classProbs=TRUE, summaryFunction=twoClassSummary)
+fit <- train(Survived~., data=train, method="glm", metric="ROC", trControl=control)
+# display results
+print(fit)
+```
+
+空值補 0, 做羅吉斯迴歸
+```{r}
+df_0 <- df %>% replace(., is.na(.), 0)
+train_x <- df_0[1:train_num,]
+train_y <- as.factor(train_y)
+levels(train_y) <- make.names(levels(factor(train_y)))
+
+train <- train_x %>% mutate(Survived = train_y)
+control <- trainControl(method="cv", number=5, classProbs=TRUE, summaryFunction=twoClassSummary)
+fit <- train(Survived~., data=train, method="glm", metric="ROC", trControl=control)
+# display results
+print(fit)
+```
+
+空值補平均值, 做羅吉斯迴歸
+```{r}
+na2mean <- function(x) {replace(x, is.na(x), mean(x, na.rm = TRUE))}
+df_mean <- df %>% replace(TRUE, lapply(df, na2mean))
+train_x <- df_mean[1:train_num,] 
+train_y <- as.factor(train_y)
+levels(train_y) <- make.names(levels(factor(train_y)))
+
+train <- train_x %>% mutate(Survived = train_y)
+control <- trainControl(method="cv", number=5, classProbs=TRUE, summaryFunction=twoClassSummary)
+fit <- train(Survived~., data=train, method="glm", metric="ROC", trControl=control)
+# display results
+print(fit)
+```
+
+##作業2  
+使用不同的標準化方式 ( 原值 / 最小最大化 / 標準化 )，搭配羅吉斯迴歸模型，何者效果最好?  
+
+空值補平均值, 做羅吉斯迴歸
+```{r}
+na2mean <- function(x) {replace(x, is.na(x), mean(x, na.rm = TRUE))}
+df_mean <- df %>% replace(TRUE, lapply(df, na2mean))
+train_x <- df_mean[1:train_num,] 
+train_y <- as.factor(train_y)
+levels(train_y) <- make.names(levels(factor(train_y)))
+
+train <- train_x %>% mutate(Survived = train_y)
+control <- trainControl(method="cv", number=5, classProbs=TRUE, summaryFunction=twoClassSummary)
+fit <- train(Survived~., data=train, method="glm", metric="ROC", trControl=control)
+# display results
+print(fit)
+```
+空值補平均值, 最小最大化, 做羅吉斯迴歸
+```{r}
+na2mean <- function(x) {replace(x, is.na(x), mean(x, na.rm = TRUE))}
+df_mean <- df %>% replace(TRUE, lapply(df, na2mean))
+train_x <- df_mean[1:train_num,] 
+normal <- preProcess(train_x, method = "range", rangeBounds = c(0,1))
+train_normal <- predict(normal, train_x)
+head(train_normal)
+```
+```{r}
+train_y <- as.factor(train_y)
+levels(train_y) <- make.names(levels(factor(train_y)))
+
+train <- train_normal %>% mutate(Survived = train_y)
+control <- trainControl(method="cv", number=5, classProbs=TRUE, summaryFunction=twoClassSummary)
+fit <- train(Survived~., data=train, method="glm", metric="ROC", trControl=control)
+# display results
+print(fit)
+```
+空值補平均值, 標準化, 做羅吉斯迴歸
+```{r}
+na2mean <- function(x) {replace(x, is.na(x), mean(x, na.rm = TRUE))}
+df_mean <- df %>% replace(TRUE, lapply(df, na2mean))
+train_x <- df_mean[1:train_num,] 
+standard <- preProcess(train_x, method = c("center", "scale"), rangeBounds = c(0,1))
+train_standard <- predict(standard, train_x)
+head(train_standard)
+```
+```{r}
+train_y <- as.factor(train_y)
+levels(train_y) <- make.names(levels(factor(train_y)))
+
+train <- train_standard %>% mutate(Survived = train_y)
+control <- trainControl(method="cv", number=5, classProbs=TRUE, summaryFunction=twoClassSummary)
+fit <- train(Survived~., data=train, method="glm", metric="ROC", trControl=control)
+# display results
+print(fit)
+```
+
+
+
+
+
+
+
+
+
