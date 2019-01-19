@@ -1,0 +1,114 @@
+---
+title: "Day020"
+output: rmarkdown::github_document
+---
+
+##HW (Kaggle)房價預測精簡版
+https://www.kaggle.com/c/house-prices-advanced-regression-techniques 
+
+
+```{r include=FALSE}
+knitr::opts_chunk$set(warning = FALSE)
+```
+Packages loading
+```{r message=FALSE}
+library(purrr)
+library(plyr)
+library(tidyverse)
+library(caret)
+library(ROCR)
+```
+
+Data loading  
+```{r}
+df_train <- read.csv("data/house_train.csv")
+df_test <- read.csv("data/house_test.csv")
+sapply(list(df_train=df_train, df_test=df_test), dim) %>% 'rownames<-'(c('nrow','ncol')) 
+```
+
+Setting training and testing data  
+```{r}
+train_y <-  log1p(df_train$SalePrice) 
+ids <- df_test$PassengerId
+df_train <- df_train %>% select(-c("SalePrice","Id"))
+df_test <- df_test %>% select(-"Id")
+df <- rbind(df_train, df_test)
+head(df)
+```
+
+秀出資料欄位的類型與數量
+```{r}
+table(sapply(df, class))
+```
+確定只有 integer, numeric, factor 三種類型後, 分別將欄位名稱存於三個 vector 中
+```{r}
+feature_type <- sapply(df, class)
+int_var <- feature_type[which(feature_type == "integer")] %>% as.data.frame %>% rownames
+fac_var <- feature_type[which(feature_type == "factor")] %>% as.data.frame %>% rownames
+list(integer_feature = int_var,
+     factor_feature = fac_var)
+```
+
+削減文字型欄位, 只剩數值型欄位
+```{r}
+df <- df %>% select(-fac_var)
+train_num <- length(train_y)
+head(df)
+```
+##作業1  
+試著限制 '1樓地板面積(平方英尺)' (1stFlrSF) 欄位的上下限, 看看能否再進一步提高分數?
+```{r}
+# 顯示 1stFlrSF 與目標值的散佈圖
+df[1:train_num,] %>%
+  mutate(SalePrice = train_y) %>%
+  ggplot(aes(x = X1stFlrSF, y = SalePrice)) +
+  geom_point() +
+  geom_smooth()
+```
+```{r}
+# 做線性迴歸, 觀察分數
+df_m1 <- df %>% replace(., is.na(.), -1) # 缺失值補-1
+train_x <- df_m1[1:train_num,] 
+normal <- preProcess(train_x, method = "range", rangeBounds = c(0,1)) # 最小最大化
+train_normal <- predict(normal, train_x)
+train <- train_normal %>% mutate(SalePrice = train_y)
+control <- trainControl(method="cv", number=5) # 交叉驗證, folds=5
+fit <- train(SalePrice~., data=train, method="lm", metric="Rsquared", trControl=control)
+# display results
+print(fit)
+```
+```{r}
+ggplot(data = df, aes(x = "", y = X1stFlrSF)) + 
+  geom_boxplot(notch = F, outlier.color = "darkgrey", outlier.shape = 1,
+                 color = "black", fill = "darkorange", varwidth = T) +
+  stat_summary(geom = "text", fun.y = quantile,
+                 aes(label=sprintf("%1.1f", ..y..)),
+                 position=position_nudge(x=0.425), size=3.5)
+```
+```{r}
+# 將 X1stFlrSF 限制在 0 到 2500 以內, 捨棄離群值
+df_filter <- df %>% 
+  filter(X1stFlrSF>0 & X1stFlrSF<=2500)
+
+df_filter[1:train_num,] %>%
+  mutate(SalePrice = train_y) %>%
+  ggplot(aes(x = X1stFlrSF, y = SalePrice)) +
+  geom_point() +
+  geom_smooth()
+```
+```{r}
+# 做線性迴歸, 觀察分數
+df_m1 <- df %>% replace(., is.na(.), -1)
+train_filter <- df_m1[1:train_num,] %>%
+  mutate(SalePrice = train_y) %>%
+  filter(X1stFlrSF>0 & X1stFlrSF<=2500)
+
+ 
+normal <- preProcess(train_filter, method = "range", rangeBounds = c(0,1))
+train_filter <- predict(normal, train_filter)
+control <- trainControl(method="cv", number=5)
+fit <- train(SalePrice~., data=train_filter, method="lm", metric="Rsquared", trControl=control)
+# display results
+print(fit)
+```
+
