@@ -1,0 +1,143 @@
+---
+title: "Day021"
+output: rmarkdown::github_document
+---
+Visiting: Categorical Features and Encoding in Decision Trees:  
+https://medium.com/data-design/visiting-categorical-features-and-encoding-in-decision-trees-53400fa65931
+  
+## HW (Kaggle)鐵達尼生存預測精簡版  
+https://www.kaggle.com/c/titanic  
+
+
+```{r include=FALSE}
+knitr::opts_chunk$set(warning = FALSE)
+```
+Packages loading
+```{r message=FALSE}
+library(purrr)
+library(magrittr)
+library(plyr)
+library(tidyverse)
+library(caret)
+library(pROC)
+```
+
+Data loading  
+```{r}
+df_train <- read.csv("data/titanic_train.csv")
+df_test <- read.csv("data/titanic_test.csv")
+sapply(list(df_train=df_train, df_test=df_test), dim) %>% 'rownames<-'(c('nrow','ncol')) 
+```
+
+Setting training and testing data  
+```{r}
+train_y <- df_train$Survived
+ids <- df_test$PassengerId
+df_train <- df_train %>% select(-c("Survived","PassengerId"))
+df_test <- df_test %>% select(-"PassengerId")
+df <- rbind(df_train, df_test)
+```
+
+秀出資料欄位的類型與數量
+```{r}
+table(sapply(df, class))
+```
+確定只有 integer, numeric, factor 三種類型後, 分別將欄位名稱存於三個 vector 中
+```{r}
+feature_type <- sapply(df, class)
+int_var <- feature_type[which(feature_type == "integer")] %>% as.data.frame %>% rownames
+num_var <- feature_type[which(feature_type == "numeric")] %>% as.data.frame %>% rownames
+fac_var <- feature_type[which(feature_type == "factor")] %>% as.data.frame %>% rownames
+list(integer_feature = int_var,
+     numeric_feature = num_var,
+     factor_feature = fac_var)
+```
+
+只留文字型欄位
+```{r}
+df <- df %>% select(fac_var)
+train_num <- length(train_y)
+
+# Fill empty entry with None
+feature.names <- colnames(df)
+for (f in feature.names) {
+  df[[f]] <- mapvalues(df[[f]], from="", to="None")
+}
+```
+  
+Label encoding
+```{r}
+feature.names <- colnames(df)
+count <- 0
+
+df_le <- df
+# Iterate through the columns
+for (f in feature.names) {
+  levels <- df[[f]] %>% unlist() %>% levels()
+  df_le[[f]] <- mapvalues(df[[f]], from=levels, to=seq_along(levels)) %>% as.integer()
+  count <- count + 1
+}
+```
+  
+Logistic Regression + Label encoding
+```{r}
+train_le <- df_le[1:train_num,] %>% mutate(Survived = as.factor(train_y))
+levels(train_le$Survived) <- make.names(levels(factor(train_le$Survived)))
+control <- trainControl(method="cv", number=5, classProbs=TRUE, summaryFunction=twoClassSummary)
+fit_le <- train(Survived~., data=train_le, method="glm", metric="ROC", trControl=control)
+# display results
+print(fit_le)
+```
+```{r}
+glm.probs <- predict(fit_le, data = train_le$Survived, type = "prob")
+glm.ROC <- roc(response = train_le$Survived,
+               predictor = glm.probs$X1,
+               levels = levels(train_le$Survived))
+plot(glm.ROC, type="S", col="red"); text(x=0, y=.25, labels=paste("AUC =", round(glm.ROC$auc, 4)))
+```
+  
+  
+Mean encoding
+```{r}
+train <- df_le[1:train_num,] %>% mutate(Survived = train_y)
+ mean_encoding <- function(feature) {
+ train %>%
+  group_by(train[[feature]]) %>% 
+  summarise(mean = mean(Survived)) %>%
+  set_colnames(c(feature, paste0(feature, ".mean"))) %>%
+  right_join(train) %>%
+  select(paste0(feature, ".mean")) %>%
+  return
+}
+
+train_mean <- data.frame()[1:nrow(train),] # Set a empty dataframe
+for (feature in feature.names) {
+  feature.mean <- mean_encoding(feature = feature)
+  train_mean <- cbind(feature.mean, train_mean)
+}
+
+train_mean %>% head
+```
+```{r}
+all.equal(train_mean$Name.mean, train$Survived)
+# Since all Names are unique, 
+# the mean_encoding function returns the value equivalent to the target variable, Survived.
+# So we remove the Name.mean variable
+train_mean <- train_mean %>% select(-"Name.mean")
+```
+
+```{r}
+train_mean <- train_mean %>% mutate(Survived = as.factor(train_y))
+levels(train_mean$Survived) <- make.names(levels(factor(train_mean$Survived)))
+control <- trainControl(method="cv", number=5, classProbs=TRUE, summaryFunction=twoClassSummary)
+fit_mean <- train(Survived~., data=train_mean, method="glm", metric="ROC", trControl=control)
+# display results
+print(fit_mean)
+```
+```{r}
+glm.probs <- predict(fit_mean, data = train_mean$Survived, type = "prob")
+glm.ROC <- roc(response = train_mean$Survived,
+               predictor = glm.probs$X1,
+               levels = levels(train_mean$Survived))
+plot(glm.ROC, type="S", col="red"); text(x=0, y=.25, labels=paste("AUC =", round(glm.ROC$auc, 4)))
+```
