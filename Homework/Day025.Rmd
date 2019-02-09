@@ -1,0 +1,137 @@
+---
+title: "Day025"
+output: rmarkdown::github_document
+---
+  
+## HW (Kaggle)計程車費率預測  
+https://www.kaggle.com/c/new-york-city-taxi-fare-prediction  
+
+
+```{r include=FALSE}
+knitr::opts_chunk$set(warning = FALSE)
+```
+Packages loading
+```{r message=FALSE}
+library(lubridate)
+library(magrittr)
+library(tidyverse)
+library(caret)
+library(hash)
+library(pROC)
+```
+
+Data loading  
+```{r}
+df <- read.csv("data/taxi_data1.csv")
+train_Y <- df %>% select("fare_amount")
+df <- df %>% select(-"fare_amount")
+sapply(list(df=df), dim) %>% 'rownames<-'(c('nrow','ncol')) 
+```
+
+```{r}
+df %>% head
+```
+
+時間特徵分解方式:使用package: lubridate
+```{r}
+df$pickup_datetime <- as.POSIXct(df$pickup_datetime, format='%Y-%m-%d %H:%M:%S UTC')
+df$pickup_year <- year(df$pickup_datetime) 
+df$pickup_month <- month(df$pickup_datetime) 
+df$pickup_day <- day(df$pickup_datetime) 
+df$pickup_hour <- hour(df$pickup_datetime) 
+df$pickup_minute <- minute(df$pickup_datetime) 
+df$pickup_second <- second(df$pickup_datetime) 
+df %>% head
+```
+
+```{r}
+df_temp <- df %>% select(-"pickup_datetime")
+
+# 最小最大化
+normal <- preProcess(df_temp, method = "range", rangeBounds = c(0,1))
+train_X <- predict(normal, df_temp)
+```
+  
+線性迴歸 
+```{r}
+train <- data.frame(train_X, fare_amount = train_Y)
+
+control <- trainControl(method="cv", number=5, repeats = 5)
+model.lr <- train(fare_amount~., data = train, method = 'glm', trControl=control)
+model.lr
+```
+  
+梯度提升樹
+```{r}
+control <- trainControl(method="cv", number=5, repeats = 5)
+model.gbm <- train(fare_amount~., data = train, method = "gbm", trControl = control, verbose = FALSE)
+model.gbm
+```
+  
+## 作業1  
+對照範例，試著加入星期幾 (day of week) 與第幾周 (week of year) 這兩項特徵，  
+看看結果會比原本只有時間特徵分解的結果更好或更差?  
+```{r}
+df$pickup_weekday <- wday(df$pickup_datetime) # Sunday = 1
+df$pickup_week <- week(df$pickup_datetime) 
+df %>% head
+```
+```{r}
+df_temp <- df %>% select(-"pickup_datetime")
+
+# 最小最大化
+normal <- preProcess(df_temp, method = "range", rangeBounds = c(0,1))
+train_X <- predict(normal, df_temp)
+```
+  
+線性迴歸 
+```{r}
+train <- data.frame(train_X, fare_amount = train_Y)
+
+control <- trainControl(method="cv", number=5, repeats = 5)
+model.lr <- train(fare_amount~., data = train, method = 'glm', trControl=control)
+model.lr
+```
+  
+梯度提升樹
+```{r}
+control <- trainControl(method="cv", number=5, repeats = 5)
+model.gbm <- train(fare_amount~., data = train, method = "gbm", trControl = control, verbose = FALSE)
+model.gbm
+```
+  
+## 作業2  
+對照範例的日週期效果，試著參考投影片完成年週期與周週期的特徵 (也可以用你自己想到的方式)，  
+看看結果會比範例中的結果更好或更差?  
+  
+加上"年週期"特徵
+```{r}
+df$year_cycle <- cospi(df$pickup_month/6 + df$pickup_day/180)
+df$week_cycle <- sinpi(df$pickup_weekday/3.5 + df$pickup_hour/84)
+df %>% head
+```
+
+```{r}
+df_temp <- df %>% select(-"pickup_datetime")
+
+# 最小最大化
+normal <- preProcess(df_temp, method = "range", rangeBounds = c(0,1))
+train_X <- predict(normal, df_temp)
+```
+  
+線性迴歸 
+```{r}
+train <- data.frame(train_X, fare_amount = train_Y)
+
+control <- trainControl(method="cv", number=5, repeats = 5)
+model.lr <- train(fare_amount~., data = train, method = 'glm', trControl=control)
+model.lr
+```
+  
+梯度提升樹
+```{r}
+control <- trainControl(method="cv", number=5, repeats = 5)
+model.gbm <- train(fare_amount~., data = train, method = "gbm", trControl = control, verbose = FALSE)
+model.gbm
+```
+
