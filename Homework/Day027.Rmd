@@ -1,0 +1,152 @@
+---
+title: "Day027"
+output: rmarkdown::github_document
+---
+  
+## HW (Kaggle)鐵達尼生存預測精簡版  
+https://www.kaggle.com/c/titanic  
+  
+  
+## 作業1  
+試著使用鐵達尼號的例子，創立兩種以上的群聚編碼特徵( mean、median、mode、max、min、count 均可 )
+```{r include=FALSE}
+knitr::opts_chunk$set(warning = FALSE)
+Sys.setlocale(category = "LC_ALL", locale = "UTF-8")
+```
+Packages loading
+```{r message=FALSE}
+library(purrr)
+library(magrittr)
+library(plyr)
+library(tidyverse)
+library(caret)
+library(hash)
+library(pROC)
+```
+
+Data loading  
+```{r}
+df_train <- read.csv("data/titanic_train.csv")
+sapply(list(df_train=df_train), dim) %>% 'rownames<-'(c('nrow','ncol')) 
+```
+
+Setting training and testing data  
+```{r}
+train_y <- df_train$Survived
+df <- df_train %>% select(-c("Survived","PassengerId"))
+df %>% head
+```
+  
+Fare對Ticket做群聚編碼
+```{r}
+mean_df <- df %>%
+  group_by(Ticket) %>%
+  summarise(Fare_Mean = mean(Fare))
+
+# 眾數function
+value_most <- function(data) {
+  data %>%
+  table %>%
+  which.max %>%
+  names %>% 
+  as.numeric
+}
+
+mode_df <- df %>%
+  group_by(Ticket) %>%
+  summarise(Fare_Mode = value_most(Fare))
+
+median_df <- df %>%
+  group_by(Ticket) %>%
+  summarise(Fare_Median = median(Fare))
+
+max_df <- df %>%
+  group_by(Ticket) %>%
+  summarise(Fare_Max = max(Fare))
+
+temp <- df %>% 
+  left_join(mean_df) %>%
+  left_join(mode_df) %>%
+  left_join(median_df) %>%
+  left_join(max_df) %>%
+  select(c("Ticket","Fare_Mean","Fare_Mode","Fare_Median","Fare_Max"))
+
+temp %>% head
+```
+
+
+```{r}
+df <- df %>% 
+  left_join(mean_df) %>%
+  left_join(mode_df) %>%
+  left_join(median_df) %>%
+  left_join(max_df) %>%
+  select(-Ticket)
+
+df %>% head
+```
+
+確定只有 integer, numeric, factor 三種類型後, 分別將欄位名稱存於三個 vector 中
+```{r}
+feature_type <- sapply(df, class)
+int_var <- feature_type[which(feature_type == "integer")] %>% as.data.frame %>% rownames
+num_var <- feature_type[which(feature_type == "numeric")] %>% as.data.frame %>% rownames
+fac_var <- feature_type[which(feature_type == "factor")] %>% as.data.frame %>% rownames
+list(integer_feature = int_var,
+     numeric_feature = num_var,
+     factor_feature = fac_var)
+```
+
+只留數值型欄位
+```{r}
+df <- df %>% select(-fac_var)
+
+# 空值補 -1
+df <- df %>% replace(., is.na(.), -1)
+df %>% head
+```
+  
+## 作業2  
+將上述的新特徵，合併原有的欄位做生存率預估，結果是否有改善?  
+```{r}
+# 沒有這四個新特徵的 dataframe 稱為 df_minus
+df_minus <- df %>%
+  select(-c('Fare_Mean', 'Fare_Mode', 'Fare_Median', 'Fare_Max'))
+```
+  
+原始特徵 + 邏輯斯迴歸
+```{r}
+train <- df_minus %>% mutate(Survived = as.factor(train_y))
+levels(train$Survived) <- make.names(levels(factor(train$Survived)))
+control <- trainControl(method="cv", number=5, classProbs=TRUE, summaryFunction=twoClassSummary)
+fit <- train(Survived~., data=train, method="glm", metric="ROC", trControl=control)
+# display results
+print(fit)
+```
+```{r}
+glm.probs <- predict(fit, data = train$Survived, type = "prob")
+glm.ROC <- roc(response = train$Survived,
+               predictor = glm.probs$X1,
+               levels = levels(train$Survived))
+plot(glm.ROC, type="S", col="red"); text(x=0, y=.25, labels=paste("AUC =", round(glm.ROC$auc, 4)))
+```
+   
+新特徵 + 邏輯斯迴歸
+```{r}
+train <- df %>% mutate(Survived = as.factor(train_y))
+levels(train$Survived) <- make.names(levels(factor(train$Survived)))
+control <- trainControl(method="cv", number=5, classProbs=TRUE, summaryFunction=twoClassSummary)
+fit <- train(Survived~., data=train, method="glm", metric="ROC", trControl=control)
+# display results
+print(fit)
+```
+```{r}
+glm.probs <- predict(fit, data = train$Survived, type = "prob")
+glm.ROC <- roc(response = train$Survived,
+               predictor = glm.probs$X1,
+               levels = levels(train$Survived))
+plot(glm.ROC, type="S", col="red"); text(x=0, y=.25, labels=paste("AUC =", round(glm.ROC$auc, 4)))
+# 結果: 準確度稍微上升
+```
+
+
