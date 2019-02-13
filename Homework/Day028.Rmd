@@ -1,0 +1,194 @@
+---
+title: "Day028"
+output: rmarkdown::github_document
+---
+  
+## Feature Selection
+   
+(Kaggle)鐵達尼生存預測精簡版  
+https://www.kaggle.com/c/titanic  
+  
+
+```{r include=FALSE}
+knitr::opts_chunk$set(warning = FALSE)
+Sys.setlocale(category = "LC_ALL", locale = "UTF-8")
+```
+Packages loading
+```{r message=FALSE}
+library(heatmaply)
+library(glmnet)
+library(tidyverse)
+library(caret)
+library(pROC)
+```
+
+Data loading  
+```{r}
+df_train <- read.csv("data/titanic_train.csv")
+sapply(list(df_train=df_train), dim) %>% 'rownames<-'(c('nrow','ncol')) 
+```
+
+Setting training and testing data  
+```{r}
+train_y <- df_train$Survived
+df <- df_train %>% select(-c("Survived","PassengerId"))
+df %>% head
+```
+  
+確定只有 integer, numeric, factor 三種類型後, 分別將欄位名稱存於三個 vector 中
+```{r}
+feature_type <- sapply(df, class)
+int_var <- feature_type[which(feature_type == "integer")] %>% as.data.frame %>% rownames
+num_var <- feature_type[which(feature_type == "numeric")] %>% as.data.frame %>% rownames
+fac_var <- feature_type[which(feature_type == "factor")] %>% as.data.frame %>% rownames
+list(integer_feature = int_var,
+     numeric_feature = num_var,
+     factor_feature = fac_var)
+```
+
+只留數值型欄位
+```{r}
+df <- df %>% select(-fac_var)
+
+# 空值補 -1
+df <- df %>% replace(., is.na(.), -1)
+df %>% head
+```
+  
+計算df整體相關係數, 並繪製成熱圖
+```{r}
+mat <- df %>% 
+  mutate(Survived = train_y) %>%
+  cor() %>%
+  as.matrix()
+heatmaply(mat, draw_cellnote = TRUE, dendrogram="none")
+```
+   
+## 作業1  
+鐵達尼生存率預測中，試著變更兩種以上的相關係數門檻值，觀察預測能力是否提升?
+  
+  
+原始特徵 + 邏輯斯迴歸
+```{r}
+# 最小最大化
+normal <- preProcess(df, method = "range", rangeBounds = c(0,1))
+train_X <- predict(normal, df)
+
+train <- train_X %>% mutate(Survived = as.factor(train_y))
+levels(train$Survived) <- make.names(levels(factor(train$Survived)))
+control <- trainControl(method="cv", number=5, classProbs=TRUE, summaryFunction=twoClassSummary)
+fit <- train(Survived~., data=train, method="glm", metric="ROC", trControl=control)
+# display results
+print(fit)
+
+glm.probs <- predict(fit, data = train$Survived, type = "prob")
+glm.ROC <- roc(response = train$Survived,
+               predictor = glm.probs$X1,
+               levels = levels(train$Survived))
+plot(glm.ROC, type="S", col="red"); text(x=0, y=.25, labels=paste("AUC =", round(glm.ROC$auc, 4)))
+```
+  
+篩選相關係數1 (正負0.1)
+```{r}
+df_y <- df %>% 
+  mutate(Survived = train_y)
+
+cor_index1 <- df_y %>%
+  cor(.$Survived) %>%
+  {.>.1 | .<(-.1)} %>%
+  which
+
+cor_var1 <- colnames(df_y)[cor_index1]
+(cor_var1 <- cor_var1[-length(cor_var1)]) # 扣除Survived項
+```
+  
+特徵1 + 邏輯斯迴歸
+```{r}
+# 最小最大化
+normal_cor1 <- preProcess(df[cor_var1], method = "range", rangeBounds = c(0,1))
+train_X_cor1 <- predict(normal_cor1, df[cor_var1])
+
+train_cor1 <- train_X_cor1 %>% mutate(Survived = as.factor(train_y))
+levels(train_cor1$Survived) <- make.names(levels(factor(train_cor1$Survived)))
+control <- trainControl(method="cv", number=5, classProbs=TRUE, summaryFunction=twoClassSummary)
+fit_cor1 <- train(Survived~., data=train_cor1, method="glm", metric="ROC", trControl=control)
+# display results
+print(fit_cor1)
+
+glm.probs <- predict(fit_cor1, data = train_cor1$Survived, type = "prob")
+glm.ROC <- roc(response = train_cor1$Survived,
+               predictor = glm.probs$X1,
+               levels = levels(train_cor1$Survived))
+plot(glm.ROC, type="S", col="red"); text(x=0, y=.25, labels=paste("AUC =", round(glm.ROC$auc, 4)))
+# 結果 : 準確度下降
+```
+  
+篩選相關係數1 (正負0.05)
+```{r}
+df_y <- df %>% 
+  mutate(Survived = train_y)
+
+cor_index2 <- df_y %>%
+  cor(.$Survived) %>%
+  {.>.05 | .<(-.05)} %>%
+  which
+
+cor_var2 <- colnames(df_y)[cor_index2]
+(cor_var2 <- cor_var2[-length(cor_var2)]) # 扣除Survived項
+```
+  
+特徵2 + 邏輯斯迴歸
+```{r}
+# 最小最大化
+normal_cor2 <- preProcess(df[cor_var2], method = "range", rangeBounds = c(0,1))
+train_X_cor2 <- predict(normal_cor2, df[cor_var2])
+
+train_cor2 <- train_X_cor2 %>% mutate(Survived = as.factor(train_y))
+levels(train_cor2$Survived) <- make.names(levels(factor(train_cor2$Survived)))
+control <- trainControl(method="cv", number=5, classProbs=TRUE, summaryFunction=twoClassSummary)
+fit_cor2 <- train(Survived~., data=train_cor2, method="glm", metric="ROC", trControl=control)
+# display results
+print(fit_cor2)
+
+glm.probs <- predict(fit_cor2, data = train_cor2$Survived, type = "prob")
+glm.ROC <- roc(response = train_cor2$Survived,
+               predictor = glm.probs$X1,
+               levels = levels(train_cor2$Survived))
+plot(glm.ROC, type="S", col="red"); text(x=0, y=.25, labels=paste("AUC =", round(glm.ROC$auc, 4)))
+# 結果 : 準確度比特徵一上升，但跟原始比較還是下降
+```
+  
+## 作業2  
+續上題，使用 L1 Embedding 做特徵選擇(自訂門檻)，觀察預測能力是否提升?
+```{r}
+# 最小最大化
+normal <- preProcess(df, method = "range", rangeBounds = c(0,1))
+train_X <- predict(normal, df)
+
+fit <- cv.glmnet(as.matrix(train_X),as.matrix(train_y) , family="gaussian", alpha=1)
+lasso_coeffs <- coef(fit, s=fit$lambda.1se)
+lasso_var <- rownames(lasso_coeffs)[which(lasso_coeffs!=0)]
+(lasso_var <- lasso_var[-1]) # 扣除(Intercept)項
+```
+  
+L1_Embedding 特徵 + 線性迴歸
+```{r}
+# 最小最大化
+normal_lasso <- preProcess(df[lasso_var], method = "range", rangeBounds = c(0,1))
+train_X_lasso <- predict(normal_lasso, df[lasso_var])
+
+train_lasso <- train_X_lasso %>% mutate(Survived = as.factor(train_y))
+levels(train_lasso$Survived) <- make.names(levels(factor(train_lasso$Survived)))
+control <- trainControl(method="cv", number=5, classProbs=TRUE, summaryFunction=twoClassSummary)
+fit_lasso <- train(Survived~., data=train_lasso, method="glm", metric="ROC", trControl=control)
+# display results
+print(fit_lasso)
+
+glm.probs <- predict(fit_lasso, data = train_lasso$Survived, type = "prob")
+glm.ROC <- roc(response = train_lasso$Survived,
+               predictor = glm.probs$X1,
+               levels = levels(train_lasso$Survived))
+plot(glm.ROC, type="S", col="red"); text(x=0, y=.25, labels=paste("AUC =", round(glm.ROC$auc, 4)))
+```
+
+
