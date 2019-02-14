@@ -1,0 +1,155 @@
+---
+title: "Day027"
+output: rmarkdown::github_document
+---
+  
+## HW (Kaggle)鐵達尼生存預測精簡版  
+https://www.kaggle.com/c/titanic  
+  
+
+```{r include=FALSE}
+knitr::opts_chunk$set(warning = FALSE)
+Sys.setlocale(category = "LC_ALL", locale = "UTF-8")
+```
+Packages loading
+```{r message=FALSE}
+library(plyr)
+library(tidyverse)
+library(caret)
+library(gbm)
+library(mlbench)
+```
+
+Data loading  
+```{r}
+df_train <- read.csv("data/titanic_train.csv")
+sapply(list(df_train=df_train), dim) %>% 'rownames<-'(c('nrow','ncol')) 
+```
+
+Setting training data  
+```{r}
+train_y <- df_train$Survived
+df <- df_train %>% select(-c("Survived","PassengerId"))
+df %>% head
+```
+  
+秀出資料欄位的類型與數量
+```{r}
+table(sapply(df, class))
+```
+  
+確定只有 integer, numeric, factor 三種類型後, 分別將欄位名稱存於三個 vector 中
+```{r}
+feature_type <- sapply(df, class)
+int_var <- feature_type[which(feature_type == "integer")] %>% as.data.frame %>% rownames
+num_var <- feature_type[which(feature_type == "numeric")] %>% as.data.frame %>% rownames
+fac_var <- feature_type[which(feature_type == "factor")] %>% as.data.frame %>% rownames
+list(integer_feature = int_var,
+     numeric_feature = num_var,
+     factor_feature = fac_var)
+```
+  
+把類別型特徵做標籤編碼
+```{r}
+feature.names <- colnames(df[fac_var])
+count <- 0
+
+# Iterate through the columns
+for (f in feature.names) {
+  levels <- df[[f]] %>% unlist() %>% levels()
+  df[[f]] <- mapvalues(df[[f]], from=levels, to=seq_along(levels)) %>% as.integer()
+  count <- count + 1
+}
+df %>% head
+```
+
+```{r}
+# 缺失值補-1
+df <- df %>% replace(., is.na(.), -1)
+
+# 最小最大化
+normal <- preProcess(df, method = "range", rangeBounds = c(0,1))
+train_X <- predict(normal, df)
+
+train_X %>% head
+```
+  
+梯度提升樹擬合後, 將結果依照重要性由高到低排序
+```{r}
+train <- train_X %>% mutate(Survived = as.factor(train_y))
+levels(train$Survived) <- make.names(levels(factor(train$Survived)))
+control <- trainControl(method="cv", number=5, repeats=5)
+gbm.fit <- train(Survived~., data=train, method="gbm", trControl=control, verbose = FALSE)
+varImp(gbm.fit)
+
+# 保留特徵重要性較高的一半特徵
+gbm_var <- varImp(gbm.fit)$importance %>%
+  as.data.frame %>%
+  rownames_to_column %>%
+  arrange(desc(Overall)) %>%
+  head(5) %>%
+  {.$rowname}
+```
+  
+原始特徵 + 梯度提升樹
+```{r}
+train <- train_X %>% mutate(Survived = as.factor(train_y))
+levels(train$Survived) <- make.names(levels(factor(train$Survived)))
+control <- trainControl(method="cv", number=5, repeats=5)
+gbm.fit <- train(Survived~., data=train, method="gbm", trControl=control, verbose = FALSE)
+# display results
+print(gbm.fit)
+```
+  
+高重要性特徵 + 梯度提升樹 
+```{r}
+train <- train_X[gbm_var] %>% mutate(Survived = as.factor(train_y))
+levels(train$Survived) <- make.names(levels(factor(train$Survived)))
+control <- trainControl(method="cv", number=5, repeats=5)
+gbm.fit <- train(Survived~., data=train, method="gbm", trControl=control, verbose = FALSE)
+# display results
+print(gbm.fit)
+# 結果 : 準確度稍微下降
+```
+  
+## 作業2  
+將特徵重要性高的兩個特徵做特徵組合，是否能再進一步提升預測力?
+```{r}
+ggplot(train, aes(x=Survived, y=Ticket)) +
+  geom_boxplot()
+```
+
+```{r}
+train %>%
+ggplot(aes(x = Fare, fill = Survived)) +
+    geom_histogram(aes(y = ..density..),binwidth = .03, alpha = .7, linetype = "blank") +
+    geom_density(alpha = .3)
+```
+  
+作新特徵看效果
+```{r}
+df$Add_char <- df$Sex + df$Fare
+df$Multi_char <- df$Sex * df$Fare
+df$GO_div1p <- df$Sex / (df$Fare + 1)
+df$OG_div1p <- df$Fare / (df$Sex + 1)
+dim(df)
+
+# 最小最大化
+normal <- preProcess(df, method = "range", rangeBounds = c(0,1))
+train_X <- predict(normal, df)
+```
+  
+新特徵 + 梯度提升樹
+```{r}
+train <- train_X %>% mutate(Survived = as.factor(train_y))
+levels(train$Survived) <- make.names(levels(factor(train$Survived)))
+control <- trainControl(method="cv", number=5, repeats=5)
+gbm.fit <- train(Survived~., data=train, method="gbm", trControl=control, verbose = FALSE)
+# display results
+print(gbm.fit)
+```
+
+
+
+
+
