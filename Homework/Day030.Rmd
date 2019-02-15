@@ -1,0 +1,177 @@
+---
+title: "Day030"
+output: rmarkdown::github_document
+---
+  
+## HW (Kaggle)鐵達尼生存預測精簡版  
+https://www.kaggle.com/c/titanic  
+  
+
+```{r include=FALSE}
+knitr::opts_chunk$set(warning = FALSE)
+Sys.setlocale(category = "LC_ALL", locale = "UTF-8")
+```
+Packages loading
+```{r message=FALSE}
+library(plyr)
+library(tidyverse)
+library(caret)
+library(gbm)
+library(mlbench)
+library(pROC)
+library(xgboost)
+library(randomForest)
+```
+
+Data loading  
+```{r}
+df_train <- read.csv("data/titanic_train.csv")
+sapply(list(df_train=df_train), dim) %>% 'rownames<-'(c('nrow','ncol')) 
+```
+
+Setting training data  
+```{r}
+train_y <- df_train$Survived
+df <- df_train %>% select(-c("Survived","PassengerId"))
+df %>% head
+```
+  
+秀出資料欄位的類型與數量
+```{r}
+table(sapply(df, class))
+```
+  
+確定只有 integer, numeric, factor 三種類型後, 分別將欄位名稱存於三個 vector 中
+```{r}
+feature_type <- sapply(df, class)
+int_var <- feature_type[which(feature_type == "integer")] %>% as.data.frame %>% rownames
+num_var <- feature_type[which(feature_type == "numeric")] %>% as.data.frame %>% rownames
+fac_var <- feature_type[which(feature_type == "factor")] %>% as.data.frame %>% rownames
+list(integer_feature = int_var,
+     numeric_feature = num_var,
+     factor_feature = fac_var)
+```
+  
+把類別型特徵做標籤編碼
+```{r}
+feature.names <- colnames(df[fac_var])
+count <- 0
+
+# Iterate through the columns
+for (f in feature.names) {
+  levels <- df[[f]] %>% unlist() %>% levels()
+  df[[f]] <- mapvalues(df[[f]], from=levels, to=seq_along(levels)) %>% as.integer()
+  count <- count + 1
+}
+df %>% head
+```
+
+```{r}
+# 缺失值補-1
+df <- df %>% replace(., is.na(.), -1)
+
+# 最小最大化
+normal <- preProcess(df, method = "range", rangeBounds = c(0,1))
+train_X <- predict(normal, df)
+
+train <- train_X %>% mutate(Survived = as.factor(train_y))
+levels(train$Survived) <- make.names(levels(factor(train$Survived)))
+train %>% head
+```
+  
+Data Partition
+```{r}
+inTrain <- createDataPartition(y=train$Survived, p=0.8, list=FALSE)
+training <- train[inTrain,]; testing <- train[-inTrain,]
+```
+  
+LR
+```{r}
+control <- trainControl(method="cv", number=5,classProbs = TRUE, summaryFunction=twoClassSummary)
+lr_model <- train(Survived~., data=training, method="glmnet", metric="ROC", trControl=control)
+lr_model
+
+lr_pred_prob <- predict(lr_model, testing, type = 'prob')
+lr.ROC <- roc(response = testing$Survived,
+               predictor = lr_pred_prob$X1,
+               levels = levels(testing$Survived))
+plot(lr.ROC, type="S", col="red"); text(x=0, y=.25, labels=paste("AUC =", round(lr.ROC$auc, 4)))
+```
+  
+GBDT
+```{r}
+control <- trainControl(method="repeatedcv", number=5, repeats=5, classProbs = TRUE, summaryFunction=twoClassSummary)
+xgb_model <- train(Survived ~ ., data = training, method = 'xgbTree', trControl = control, verbose = F, metric = 'ROC', nthread = 4)
+xgb_model
+
+xgb_pred_prob <- predict(xgb_model, testing, type = 'prob')
+xgb.ROC <- roc(response = testing$Survived,
+               predictor = xgb_pred_prob$X1,
+               levels = levels(testing$Survived))
+plot(xgb.ROC, type="S", col="red"); text(x=0, y=.25, labels=paste("AUC =", round(xgb.ROC$auc, 4)))
+```
+  
+GBDT+LR
+```{r}
+train_encode <- xgb.create.features(xgb_model$finalModel, as.matrix(train[,1:(ncol(train)-1)]))
+train_encode <- as.data.frame(as.matrix(train_encode)) 
+# 新特徵名稱可能存在重複，需重新命名
+names(train_encode) <- paste("f",1:ncol(train_encode),sep='')
+
+train_encode$Survived <- train$Survived
+training_encode <- train_encode[inTrain,]; testing_encode <- train_encode[-inTrain,]
+
+control <- trainControl(method="cv", number=5,classProbs = TRUE, summaryFunction=twoClassSummary)
+lr_model <- train(Survived~., data=training_encode, method="glmnet", metric="ROC", trControl=control)
+lr_model
+
+lr_pred_prob <- predict(lr_model, testing_encode, type = 'prob')
+lr.ROC <- roc(response = testing_encode$Survived,
+               predictor = lr_pred_prob$X1,
+               levels = levels(testing_encode$Survived))
+plot(lr.ROC, type="S", col="red"); text(x=0, y=.25, labels=paste("AUC =", round(lr.ROC$auc, 4)))
+```
+  
+## 作業1
+請對照範例，完成隨機森林的鐵達尼生存率預測，以及對應的葉編碼+邏輯斯迴歸
+  
+RF
+```{r}
+control <- trainControl(method="repeatedcv", number=5, repeats=5, classProbs = TRUE, summaryFunction=twoClassSummary)
+rf_model <- train(Survived ~ ., data = training, method = 'rf', trControl = control, verbose = F, metric = 'ROC')
+rf_model
+
+rf_pred_prob <- predict(rf_model, testing, type = 'prob')
+rf.ROC <- roc(response = testing$Survived,
+               predictor = rf_pred_prob$X1,
+               levels = levels(testing$Survived))
+plot(rf.ROC, type="S", col="red"); text(x=0, y=.25, labels=paste("AUC =", round(rf.ROC$auc, 4)))
+```
+  
+RF+LR
+```{r}
+train_encode2 <- xgb.create.features(rf_model$finalModel, as.matrix(train[,1:(ncol(train)-1)]))
+train_encode2 <- as.data.frame(as.matrix(train_encode2)) 
+# 新特徵名稱可能存在重複，需重新命名
+names(train_encode2) <- paste("f",1:ncol(train_encode2),sep='')
+
+train_encode2$Survived <- train$Survived
+training_encode2 <- train_encode2[inTrain,]; testing_encode2 <- train_encode2[-inTrain,]
+
+control <- trainControl(method="cv", number=5,classProbs = TRUE, summaryFunction=twoClassSummary)
+lr_model <- train(Survived~., data=training_encode2, method="glmnet", metric="ROC", trControl=control)
+lr_model
+
+lr_pred_prob <- predict(lr_model, testing_encode, type = 'prob')
+lr.ROC <- roc(response = testing_encode2$Survived,
+               predictor = lr_pred_prob$X1,
+               levels = levels(testing_encode2$Survived))
+plot(lr.ROC, type="S", col="red"); text(x=0, y=.25, labels=paste("AUC =", round(lr.ROC$auc, 4)))
+```
+
+
+
+
+
+
+
