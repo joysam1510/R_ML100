@@ -1,0 +1,85 @@
+---
+title: "Day038"
+output: rmarkdown::github_document
+---
+
+```{r include=FALSE}
+knitr::opts_chunk$set(warning = FALSE)
+Sys.setlocale(category = "LC_ALL", locale = "UTF-8")
+```
+
+```{r message=FALSE}
+library(mlbench)
+library(tidyverse)
+library(caret)
+library(pROC)
+library(DataExplorer)
+```
+  
+
+## 練習時間  
+試著使用 sklearn datasets 的其他資料集 (wine, boston, ...)，來訓練自己的線性迴歸模型。
+  
+Wine dataset
+```{r}
+wine <- read.delim("data/wine.data", header=F, sep=",")
+colnames(wine) <- c("Alcohol","Malic acid","Ash","Alcalinity of ash","Magnesium"," Total phenols","Flavanoids",
+                    "Nonflavanoid phenols","Proanthocyanins","Color intensity","Hue","OD280/OD315 of diluted wines","Proline")
+head(wine)
+unique(wine$Alcohol)
+```
+  
+BostonHousing dataset
+```{r}
+data(BostonHousing)
+str(BostonHousing)
+```
+```{r}
+plot_missing(BostonHousing) ## Are there missing values, and what is the missing data profile?
+plot_bar(BostonHousing) ## How does the categorical frequency for each discrete variable look like?
+plot_histogram(BostonHousing) ## What is the distribution of each continuous variable?
+```
+```{r}
+plot_boxplot(BostonHousing, by = "medv") 
+```
+
+```{r}
+plot_scatterplot(subset(BostonHousing, select = -c(crim, zn, indus, b)), by = "medv", geom_point_args = list(size=.5))
+```
+
+```{r}
+plot_correlation(BostonHousing)
+```
+```{r}
+fit <- lm(medv~., data=BostonHousing)
+summary(fit)
+```
+  
+BreastCancer dataset
+```{r}
+data(BreastCancer)
+str(BreastCancer)
+```
+
+```{r}
+plot_missing(BreastCancer) ## Are there missing values, and what is the missing data profile?
+```
+
+```{r}
+BreastCancer <- BreastCancer %>% select(-Id)
+intrain <- sample(nrow(BreastCancer), nrow(BreastCancer)*.8)
+train <- BreastCancer[intrain,]; test <- BreastCancer[-intrain,]
+
+
+control <- trainControl(method="cv", number=5, classProbs = TRUE, summaryFunction=twoClassSummary)
+glm_model <- train(Class~., data=train, method="glm", family="binomial", metric="ROC", trControl=control, na.action=na.pass)
+glm_model
+
+glm_pred_prob <- predict(glm_model, test, type = 'prob',na.action=na.pass)
+glm.ROC <- roc(response = test$Class,
+               predictor = glm_pred_prob$benign,
+               levels = levels(test$Class))
+plot(glm.ROC, type="S", col="red"); text(x=0, y=.25, labels=paste("AUC =", round(glm.ROC$auc, 4)))
+```
+
+
