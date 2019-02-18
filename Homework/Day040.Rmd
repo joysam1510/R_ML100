@@ -1,0 +1,83 @@
+---
+title: "Day040"
+output: rmarkdown::github_document
+---
+caret::glmnet: https://www.datacamp.com/community/tutorials/tutorial-ridge-lasso-elastic-net
+
+
+```{r include=FALSE}
+knitr::opts_chunk$set(warning = FALSE)
+Sys.setlocale(category = "LC_ALL", locale = "UTF-8")
+```
+
+```{r message=FALSE}
+library(mlbench)
+library(tidyverse)
+library(caret)
+```
+## 練習時間  
+請使用其他資料集 (boston, wine)，並調整不同的 alpha 來觀察模型訓練的情形。  
+
+
+BostonHousing dataset  
+
+data loading
+```{r}
+data(BostonHousing)
+str(BostonHousing)
+```
+  
+data partition
+```{r}
+intrain <- sample(nrow(BostonHousing), nrow(BostonHousing)*.8)
+train <- BostonHousing[intrain,]; test <- BostonHousing[-intrain,]
+```
+
+  
+linear regression
+```{r}
+control <- trainControl(method="cv", number=5)
+fit_model <- train(medv~., data=train, method="lm", metric="RMSE", trControl=control)
+fit_model
+
+fit_pred <- predict(fit_model, test)
+MSE <- mean((fit_pred-test$medv)^2)
+MSE
+```
+  
+lasso regression
+```{r}
+control <- trainControl(method="cv", number=5)
+lasso_model <- train(medv~., data=train, method="glmnet", trControl=control, tuneGrid = expand.grid(alpha = 1,lambda = seq(0.001,0.1,by = 0.001)))
+lasso_model
+
+# best parameter
+lasso_model$bestTune
+
+# best coefficient
+coef(lasso_model$finalModel, lasso_model$bestTune$lambda)
+
+lasso_pred <- predict(lasso_model, test)
+MSE <- mean((lasso_pred-test$medv)^2)
+MSE
+```
+
+  
+ridge regression
+```{r}
+control <- trainControl(method="cv", number=5)
+ridge_model <- train(medv~., data=train, method="glmnet", trControl=control, tuneGrid = expand.grid(alpha = 0,lambda = seq(0.001,0.1,by = 0.001)))
+ridge_model
+
+# best parameter
+ridge_model$bestTune
+
+# best coefficient
+coef(ridge_model$finalModel, ridge_model$bestTune$lambda)
+
+ridge_pred <- predict(ridge_model, test)
+MSE <- mean((ridge_pred-test$medv)^2)
+MSE
+```
+
+
