@@ -1,0 +1,116 @@
+---
+title: "Day042"
+output: rmarkdown::github_document
+---
+```{r include=FALSE}
+knitr::opts_chunk$set(warning = FALSE)
+Sys.setlocale(category = "LC_ALL", locale = "UTF-8")
+```
+Packages loading
+```{r message=FALSE}
+library(plyr)
+library(tidyverse)
+library(caret)
+library(mlbench)
+library(rpart)
+library(pROC)
+```
+  
+讀取鳶尾花資料集 
+```{r}
+str(iris)
+```
+  
+切分訓練集/測試集
+```{r}
+intrain <- createDataPartition(iris$Species, p=.8, list=FALSE)
+train <- iris[intrain,]; test <- iris[-intrain,]
+```
+
+```{r}
+control <- trainControl(method = "cv")
+# fit the model
+rpart_model = train(Species ~ ., data=train, method="rpart", trControl = control)
+rpart_model
+```
+```{r}
+varImp(rpart_model)
+```
+```{r}
+suppressMessages(library(rattle))
+
+fancyRpartPlot(rpart_model$finalModel)
+```
+```{r}
+rpart.pred = predict(rpart_model, newdata = test)
+table(rpart.pred, test$Species)
+```
+```{r}
+(error.rate = round(mean(rpart.pred != test$Species),2))
+```
+## 作業  
+1. 試著調整 DecisionTreeClassifier(...) 中的參數，並觀察是否會改變結果？  
+
+```{r}
+# minsplit：每一個node最少要幾個data
+# minbucket：在末端的node上最少要幾個data
+# cp：complexity parameter. (決定精度的參數)
+# maxdepth：Tree的深度
+control <- rpart.control(minsplit = 2, minbucket = 1)
+# fit the model
+rpart_model = train(Species ~ ., data=train, method="rpart", control=control)
+rpart_model
+```
+```{r}
+fancyRpartPlot(rpart_model$finalModel)
+```
+```{r}
+rpart.pred = predict(rpart_model, newdata = test)
+table(rpart.pred, test$Species)
+```
+```{r}
+(error.rate = round(mean(rpart.pred != test$Species),2))
+```
+  
+2. 改用其他資料集 (boston, wine)，並與回歸模型的結果進行比較  
+```{r}
+data("BreastCancer")
+str(BreastCancer)
+```
+```{r}
+BreastCancer <- BreastCancer %>% select(-Id)
+intrain <- sample(nrow(BreastCancer), nrow(BreastCancer)*.8)
+train <- BreastCancer[intrain,]; test <- BreastCancer[-intrain,]
+
+
+control <- trainControl(method="cv", number=5, classProbs = TRUE, summaryFunction=twoClassSummary)
+glm_model <- train(Class~., data=train, method="glm", family="binomial", metric="ROC", trControl=control, na.action=na.pass)
+glm_model
+```
+```{r}
+glm_pred_prob <- predict(glm_model, test, type = 'prob',na.action=na.pass)
+glm.ROC <- roc(response = test$Class,
+               predictor = glm_pred_prob$benign,
+               levels = levels(test$Class))
+plot(glm.ROC, type="S", col="red"); text(x=0, y=.25, labels=paste("AUC =", round(glm.ROC$auc, 4)))
+```
+
+```{r}
+control <- trainControl(method = "cv")
+# fit the model
+rpart_model = train(Class ~ ., data=train, method="rpart", trControl = control, na.action=na.pass)
+rpart_model
+```
+```{r}
+varImp(rpart_model)
+```
+```{r}
+suppressMessages(library(rattle))
+
+fancyRpartPlot(rpart_model$finalModel)
+```
+
+
+
+
+
