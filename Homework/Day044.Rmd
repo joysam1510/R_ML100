@@ -1,0 +1,79 @@
+---
+title: "Day044"
+output: rmarkdown::github_document
+---
+
+https://machinelearningmastery.com/tune-machine-learning-algorithms-in-r/
+```{r include=FALSE}
+knitr::opts_chunk$set(warning = FALSE)
+Sys.setlocale(category = "LC_ALL", locale = "UTF-8")
+```
+Packages loading
+```{r message=FALSE}
+library(tidyverse)
+library(caret)
+library(randomForest)
+```
+  
+讀取鳶尾花資料集 
+```{r}
+str(iris)
+```
+  
+切分訓練集/測試集
+```{r}
+intrain <- createDataPartition(iris$Species, p=.8, list=FALSE)
+train <- iris[intrain,]; test <- iris[-intrain,]
+```
+  
+Default random forest
+```{r}
+# mtry: Number of variables randomly sampled as candidates at each split.
+# ntree: Number of trees to grow.
+mtry <- sqrt(ncol(train))
+tunegrid <- expand.grid(.mtry=mtry)
+# fit the model
+control <- trainControl(method="repeatedcv", number=10, repeats=3)
+rf_model = train(Species ~ ., data=train, method="rf", metric="Accuracy", tuneGrid=tunegrid, trControl = control)
+rf_model
+```
+   
+1. Tune Using Caret  
+  
+Only those algorithm parameters that have a large effect (e.g. really require tuning in Khun’s opinion) are available for tuning in caret. As such, only mtry parameter is available in caret for tuning. The reason is its effect on the final accuracy and that it must be found empirically for a dataset.  
+  
+The ntree parameter is different in that it can be as large as you like, and continues to increases the accuracy up to some point. It is less difficult or critical to tune and could be limited more by compute time available more than anything.  
+
+Random Search
+```{r}
+control <- trainControl(method="repeatedcv", number=10, repeats=3, search="random")
+#Random generate 3 mtry values with tuneLength = 3
+rf_random <- train(Species~., data=train, method="rf", metric="Accuracy", tuneLength=3, trControl=control)
+print(rf_random)
+plot(rf_random)
+```
+
+
+```{r}
+varImp(rf_model)
+```
+
+```{r}
+rf.pred = predict(rf_model, newdata = test)
+table(rf.pred, test$Species)
+```
+```{r}
+(error.rate = round(mean(rf.pred != test$Species),2))
+```
+  
+2. Tune Using Algorithm Tools  
+  
+Some algorithms provide tools for tuning the parameters of the algorithm.  
+  
+For example, the random forest algorithm implementation in the randomForest package provides the tuneRF() function that searches for optimal mtry values given your data.  
+```{r}
+# Algorithm Tune (tuneRF)
+bestmtry <- tuneRF(x=train[,1:4], y=train$Species, stepFactor=1.5, improve=1e-5, ntree=500)
+print(bestmtry)
+```
+This does not really match up with what we saw in the caret repeated cross validation experiment above, where mtry=10 gave an accuracy of 82.04%. Nevertheless, it is an alternate way to tune the algorithm.
