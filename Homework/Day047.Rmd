@@ -1,0 +1,94 @@
+---
+title: "Day047"
+output: rmarkdown::github_document
+---
+xgbTree tuning parameter:  
+https://analyticsdataexploration.com/xgboost-model-tuning-in-crossvalidation-using-caret-in-r/  
+```{r include=FALSE}
+knitr::opts_chunk$set(warning = FALSE)
+Sys.setlocale(category = "LC_ALL", locale = "UTF-8")
+```
+Packages loading
+```{r message=FALSE}
+library(tidyverse)
+library(caret)
+library(xgboost)
+```
+
+讀取鳶尾花資料集 
+```{r}
+str(iris)
+```
+  
+切分訓練集/測試集
+```{r}
+intrain <- createDataPartition(iris$Species, p=.8, list=FALSE)
+train <- iris[intrain,]; test <- iris[-intrain,]
+```
+
+Default 
+```{r}
+control <- trainControl(method="repeatedcv", number=5, repeats=5, classProbs = TRUE, allowParallel = TRUE)
+xgb_model <- train(Species ~ ., data = train, method = 'xgbTree', trControl = control, verbose = F, metric = 'Accuracy', nthread = 4)
+plot(xgb_model)
+xgb_model$bestTune
+```
+
+```{r}
+varImp(xgb_model)
+```
+```{r}
+xgb.pred = predict(xgb_model, newdata = test)
+table(xgb.pred, test$Species)
+```
+```{r}
+(error.rate = round(mean(xgb.pred != test$Species),2))
+```
+  
+Grid search
+```{r}
+xgb_grid <- expand.grid(nrounds = 1000, 
+                        eta = c(0.001, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.3),
+                        max_depth = c(1, 2, 3),
+                        gamma = c(1, 2, 3), 
+                        subsample = c(0.5, 0.75, 1),
+                        min_child_weight = c(1, 2, 3), 
+                        colsample_bytree = 1)
+control <- trainControl(method="repeatedcv", number=5, repeats=5, classProbs = TRUE, allowParallel = TRUE)
+xgb_model2 <- train(Species ~ ., data = train, method = 'xgbTree', trControl = control, verbose = F, metric = 'Accuracy', nthread = 4)
+plot(xgb_model2)
+xgb_model2$bestTune
+```
+```{r}
+varImp(xgb_model2)
+```
+```{r}
+xgb.pred2 = predict(xgb_model2, newdata = test)
+table(xgb.pred2, test$Species)
+```
+```{r}
+(error.rate = round(mean(xgb.pred2 != test$Species),2))
+```
+  
+Ransom search
+```{r}
+control <- trainControl(method="repeatedcv", number=5, repeats=5, classProbs = TRUE, allowParallel = TRUE, search = "random")
+xgb_model3 <- train(Species~., data=train, method="xgbTree", trcontrol=control, verbose=F, metric="Accuracy", nthread=4)
+plot(xgb_model3)
+xgb_model3$bestTune
+```
+
+
+```{r}
+varImp(xgb_model3)
+```
+
+```{r}
+xgb.pred3 <- predict(xgb_model3, newdata = test)
+table(xgb.pred3, test$Species)
+```
+
+```{r}
+(error.rate = round(mean(xgb.pred3 != test$Species),2))
+```
+
