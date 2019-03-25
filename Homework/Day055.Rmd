@@ -1,0 +1,63 @@
+---
+title: "Day055"
+output: rmarkdown::github_document
+---
+Clustering: http://rpubs.com/skydome20/R-Note9-Clustering
+
+```{r include=FALSE}
+knitr::opts_chunk$set(warning = FALSE)
+Sys.setlocale(category = "LC_ALL", locale = "UTF-8")
+```
+
+```{r message=FALSE}
+library(tidyverse)
+```
+
+```{r}
+glimpse(iris)
+```
+```{r}
+data <- iris %>% select(-Species) # Remove target variable
+```
+
+## Partitional Clustering
+
+K means
+```{r}
+cluster <- kmeans(data, centers = 3)
+cluster$withinss # Variance
+```
+  
+Compare the cluster with real data
+```{r}
+table(cluster$cluster, iris$Species)
+```
+```{r}
+# Data Visualization
+require(factoextra)
+fviz_cluster(cluster,
+             data = data,
+             geom = c("point", "label"),
+             frame.type = "norm")
+```
+  
+## Optimal number of clusters
+```{r}
+# Average Silhouette Method
+fviz_nbclust(data, 
+             FUNcluster = kmeans,   # K-Means
+             method = "silhouette", # Avg. Silhouette
+             k.max = 12             # max number of clusters
+             ) +
+labs(title="Avg.Silhouette Method for K-Means")
+```
+```{r}
+# Elbow Method
+fviz_nbclust(data, 
+             FUNcluster = kmeans,# K-Means
+             method = "wss",     # total within sum of square
+             k.max = 12          # max number of clusters to consider
+             ) +
+labs(title="Elbow Method for K-Means")
+```
+
